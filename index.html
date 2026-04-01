@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dr.Sole 修鞋維修登記系統</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+            background: #f5f0eb; color: #3a2f28; min-height: 100vh;
+        }
+
+        .header {
+            background: #3a2f28; color: #f5f0eb;
+            padding: 20px; text-align: center;
+        }
+        .header h1 { font-size: 28px; letter-spacing: 2px; }
+        .header p { font-size: 14px; margin-top: 4px; opacity: 0.7; }
+
+        .container { max-width: 620px; margin: 0 auto; padding: 20px; }
+
+        /* 步驟指示 */
+        .steps-bar {
+            display: flex; justify-content: center; gap: 6px;
+            margin-bottom: 20px; align-items: center;
+        }
+        .step-dot {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: #ddd; color: #999;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: bold; transition: all 0.3s;
+        }
+        .step-dot.active { background: #6b5a4e; color: #fff; }
+        .step-dot.done { background: #3a2f28; color: #fff; }
+        .step-line { width: 30px; height: 2px; background: #ddd; }
+        .step-line.done { background: #3a2f28; }
+        .step-label {
+            font-size: 15px; text-align: center; color: #8a7b6f; margin-bottom: 16px;
+        }
+
+        /* 通用卡片 */
+        .card {
+            background: #fff; border-radius: 12px; padding: 20px;
+            margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .card h2 { font-size: 19px; margin-bottom: 12px; color: #6b5a4e; }
+
+        .form-row { display: flex; gap: 12px; margin-bottom: 10px; }
+        .form-row:last-child { margin-bottom: 0; }
+        .form-group { flex: 1; }
+        .form-group label {
+            display: block; font-size: 15px; color: #8a7b6f; margin-bottom: 4px;
+        }
+        .form-group input, .form-group select {
+            width: 100%; padding: 10px 12px;
+            border: 1.5px solid #ddd; border-radius: 8px;
+            font-size: 17px; font-family: inherit; transition: border-color 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none; border-color: #6b5a4e;
+        }
+
+        /* 維修項目 */
+        .repair-list { display: flex; flex-direction: column; gap: 10px; }
+
+        .repair-item {
+            background: #fff; border-radius: 12px;
+            padding: 16px 20px;
+            display: flex; align-items: center; gap: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            cursor: pointer; transition: all 0.2s;
+            border: 2px solid transparent;
+            user-select: none; -webkit-user-select: none;
+        }
+        .repair-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .repair-item.selected { border-color: #6b5a4e; background: #faf6f2; }
+
+        .repair-item .checkbox {
+            width: 26px; height: 26px; border-radius: 50%;
+            border: 2.5px solid #ccc;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; flex-shrink: 0;
+        }
+        .repair-item.selected .checkbox { background: #6b5a4e; border-color: #6b5a4e; }
+        .repair-item.selected .checkbox::after {
+            content: "✓"; color: #fff; font-size: 14px; font-weight: bold;
+        }
+        .repair-item .item-info { flex: 1; display: flex; justify-content: space-between; align-items: center; }
+        .repair-item .name { font-size: 19px; font-weight: 500; }
+        .repair-item .price { font-size: 17px; font-weight: bold; color: #6b5a4e; white-space: nowrap; }
+
+        /* 其他項目輸入 */
+        .other-input {
+            display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;
+        }
+        .repair-item.selected .other-input { display: block; }
+        .other-input input {
+            width: 100%; padding: 8px 10px;
+            border: 1.5px solid #ddd; border-radius: 6px;
+            font-size: 14px; font-family: inherit;
+        }
+        .other-input input:focus { outline: none; border-color: #6b5a4e; }
+
+        /* 配置模組區塊（視覺分隔） */
+        .config-block {
+            background: #fff; border-radius: 12px; padding: 20px;
+            margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .config-block h2 { font-size: 20px; margin-bottom: 14px; color: #6b5a4e; }
+
+        /* 鞋底配置選項 */
+        .config-section { margin-bottom: 20px; }
+        .config-section:last-child { margin-bottom: 0; }
+        .config-section h3 { font-size: 17px; margin-bottom: 10px; color: #3a2f28; }
+
+        /* 數量輸入 */
+        .qty-input-group {
+            display: flex; align-items: center; gap: 10px; margin-top: 8px;
+        }
+        .qty-input-group input {
+            width: 80px; padding: 8px 10px; border: 1.5px solid #ddd;
+            border-radius: 6px; font-size: 15px; font-family: inherit; text-align: center;
+        }
+        .qty-input-group input:focus { outline: none; border-color: #6b5a4e; }
+        .qty-input-group .qty-hint { font-size: 13px; color: #8a7b6f; }
+        .config-options { display: flex; flex-wrap: wrap; gap: 10px; }
+        .config-option {
+            padding: 12px 18px; border-radius: 8px;
+            border: 2px solid #ddd; background: #fff;
+            cursor: pointer; font-size: 16px; font-family: inherit;
+            transition: all 0.2s; user-select: none;
+            position: relative;
+        }
+        .config-option:hover { border-color: #b0a090; }
+        .config-option.selected { border-color: #6b5a4e; font-weight: bold; }
+        .config-option .opt-price {
+            display: block; font-size: 13px; color: #8a7b6f; margin-top: 2px;
+        }
+        .config-option.selected .opt-price { color: #6b5a4e; }
+
+        /* 色號視覺化底色 */
+        .config-option .color-dot {
+            display: inline-block; width: 16px; height: 16px;
+            border-radius: 50%; margin-right: 6px; vertical-align: middle;
+            border: 1px solid rgba(0,0,0,0.15);
+        }
+
+        /* 累計金額列 */
+        .running-total {
+            background: #3a2f28; color: #f5f0eb;
+            border-radius: 10px; padding: 16px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            margin-top: 16px;
+        }
+        .running-total .rt-label { font-size: 16px; }
+        .running-total .rt-amount { font-size: 24px; font-weight: bold; letter-spacing: 1px; }
+
+        /* 按鈕 */
+        .actions { display: flex; gap: 12px; margin-top: 20px; }
+        .btn {
+            flex: 1; padding: 14px; border: none; border-radius: 10px;
+            font-size: 16px; font-weight: bold; font-family: inherit;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .btn-back { background: #e8e0d8; color: #6b5a4e; }
+        .btn-back:hover { background: #ddd3c9; }
+        .btn-next { background: #6b5a4e; color: #fff; }
+        .btn-next:hover { background: #5a4a3e; }
+
+        /* 單號指示 */
+        .ticket-indicator {
+            background: #6b5a4e; color: #fff;
+            border-radius: 8px; padding: 12px 18px;
+            margin-bottom: 16px; display: flex;
+            justify-content: space-between; align-items: center; font-size: 17px;
+        }
+        .ticket-indicator .current { font-weight: bold; font-size: 19px; }
+
+        /* 備註 */
+        .note-section textarea {
+            width: 100%; padding: 10px 12px;
+            border: 1.5px solid #ddd; border-radius: 8px;
+            font-size: 15px; font-family: inherit;
+            resize: vertical; min-height: 60px;
+        }
+        .note-section textarea:focus { outline: none; border-color: #6b5a4e; }
+
+        /* 優惠選項 */
+        .discount-options { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+        .discount-option {
+            padding: 12px 20px; border-radius: 10px;
+            border: 2px solid #ddd; background: #fff;
+            cursor: pointer; font-size: 15px; font-family: inherit;
+            transition: all 0.2s; user-select: none; text-align: center;
+        }
+        .discount-option:hover { border-color: #b0a090; }
+        .discount-option.selected { border-color: #6b5a4e; background: #faf6f2; font-weight: bold; }
+        .discount-option .disc-detail {
+            display: block; font-size: 12px; color: #8a7b6f; margin-top: 4px;
+        }
+        .discount-option.selected .disc-detail { color: #6b5a4e; }
+
+        /* 總覽明細 */
+        .summary-ticket {
+            border-top: 1.5px solid #eee; padding-top: 12px; margin-top: 12px;
+        }
+        .summary-ticket h3 { font-size: 15px; color: #6b5a4e; margin-bottom: 4px; }
+        .summary-row {
+            display: flex; justify-content: space-between;
+            padding: 4px 0; font-size: 14px;
+        }
+        .summary-row .sr-price { color: #6b5a4e; font-weight: 600; }
+        .ticket-subtotal {
+            text-align: right; font-size: 15px; font-weight: bold; color: #3a2f28;
+            margin-top: 6px; padding-top: 6px; border-top: 1px dashed #ddd;
+        }
+        .grand-total {
+            display: flex; justify-content: space-between;
+            padding: 16px 0 0; margin-top: 16px;
+            border-top: 2.5px solid #3a2f28;
+            font-size: 20px; font-weight: bold;
+        }
+        .discount-line {
+            display: flex; justify-content: space-between;
+            padding: 8px 0; font-size: 16px; color: #c0392b;
+        }
+        .final-total {
+            display: flex; justify-content: space-between;
+            padding: 12px 0 0; margin-top: 4px;
+            border-top: 2.5px solid #3a2f28;
+            font-size: 22px; font-weight: bold;
+        }
+
+        .hidden { display: none !important; }
+
+        @media (max-width: 480px) {
+            .header h1 { font-size: 22px; }
+            .container { padding: 12px; }
+            .repair-item { padding: 14px 16px; }
+            .repair-item .name { font-size: 17px; }
+            .form-row { flex-direction: column; gap: 8px; }
+            .config-option { padding: 10px 14px; font-size: 15px; }
+            .running-total .rt-amount { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Dr.Sole 維修登記</h1>
+    <p>傳統製法修鞋工坊</p>
+</div>
+
+<div class="container">
+    <!-- 步驟指示 -->
+    <div class="steps-bar">
+        <div class="step-dot active" id="dot1">1</div>
+        <div class="step-line" id="line1"></div>
+        <div class="step-dot" id="dot2">2</div>
+        <div class="step-line" id="line2"></div>
+        <div class="step-dot" id="dot3">3</div>
+        <div class="step-line" id="line3"></div>
+        <div class="step-dot" id="dot4">4</div>
+    </div>
+    <div class="step-label" id="stepLabel">第一階段：客戶資訊</div>
+
+    <!-- ============ 第一階段：客戶資訊 ============ -->
+    <div id="stage1">
+        <div class="card">
+            <h2>客戶資訊</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>姓名</label>
+                    <input type="text" id="customerName" placeholder="輸入客戶姓名">
+                </div>
+                <div class="form-group">
+                    <label>電話</label>
+                    <input type="tel" id="customerPhone" placeholder="輸入聯絡電話">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="customerEmail" placeholder="輸入電子郵件">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>維修件數（雙）</label>
+                    <input type="number" id="pairCount" min="1" max="20" value="1">
+                </div>
+            </div>
+        </div>
+        <div class="actions">
+            <button class="btn btn-next" onclick="goToStage2()">下一步</button>
+        </div>
+    </div>
+
+    <!-- ============ 第二階段：鞋子資訊 + 選維修項目 ============ -->
+    <div id="stage2" class="hidden">
+        <div class="ticket-indicator">
+            <span>維修單</span>
+            <span class="current" id="ticketLabel">第 1 雙 / 共 1 雙</span>
+        </div>
+
+        <div class="card">
+            <h2>鞋子資訊</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>鞋子資訊（品牌/外觀）</label>
+                    <input type="text" id="shoeInfo" placeholder="例：Alden 975 / 棕色長翼紋">
+                </div>
+                <div class="form-group">
+                    <label>鞋子尺寸</label>
+                    <input type="text" id="shoeSize" placeholder="例：US 9 / EU 42">
+                </div>
+            </div>
+        </div>
+
+        <div id="repairGroups"></div>
+
+        <div class="card note-section">
+            <h2>備註</h2>
+            <textarea id="noteText" placeholder="其他特殊需求或備註事項..."></textarea>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-back" onclick="goBackToStage1()">上一步</button>
+            <button class="btn btn-next" onclick="goToStage3()">下一步：選擇配置</button>
+        </div>
+    </div>
+
+    <!-- ============ 第三階段：鞋底配置 + 交期 ============ -->
+    <div id="stage3" class="hidden">
+        <div class="ticket-indicator">
+            <span>維修單</span>
+            <span class="current" id="ticketLabel3">第 1 雙 / 共 1 雙</span>
+        </div>
+
+        <div id="configSections"></div>
+        <div id="noConfigMsg" class="hidden card" style="color:#8a7b6f; font-size:14px;">
+            您選擇的維修項目不需要額外配置。
+        </div>
+
+        <!-- 累計金額 -->
+        <div class="running-total">
+            <span class="rt-label">目前維修金額</span>
+            <span class="rt-amount" id="runningTotal">$0</span>
+        </div>
+
+        <!-- 交期 -->
+        <div class="card" style="margin-top:16px;">
+            <h2>維修交期</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>維修交期週次</label>
+                    <input type="text" id="deliveryWeek" placeholder="例：第14週">
+                </div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-back" onclick="goBackToStage2()">上一步</button>
+            <button class="btn btn-next" id="btnFinish" onclick="finishTicket()">完成此單</button>
+        </div>
+    </div>
+
+    <!-- ============ 第四階段：總覽 + 優惠 ============ -->
+    <div id="stage4" class="hidden">
+        <div class="card" id="stage4Content"></div>
+
+        <div class="card">
+            <h2>優惠方案</h2>
+            <div class="discount-options" id="discountOptions"></div>
+        </div>
+
+        <!-- 折扣後金額 -->
+        <div id="finalTotalSection"></div>
+
+        <div class="actions" style="margin-bottom:40px;">
+            <button class="btn btn-back" onclick="startOver()">重新填寫</button>
+            <button class="btn btn-next" onclick="window.print()">列印明細</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================
+// 維修項目設定
+// displayPrice: 僅供第二階段顯示提醒用，不參與計算
+// ============================
+// 維修項目分三個區塊
+const REPAIR_GROUPS = [
+    {
+        label: "選擇維修項目",
+        items: [
+            { id: 1, name: "換一片式大底",    displayPrice: 2500, hasConfig: true },
+            { id: 2, name: "換分離式大底",    displayPrice: 4800, hasConfig: true },
+            { id: 3, name: "換全底",          displayPrice: 3800, hasConfig: true },
+            { id: 7, name: "更換前半掌",      displayPrice: 1900, hasConfig: true },
+            { id: 4, name: "換鞋跟",          displayPrice: 600,  hasConfig: true },
+            { id: 5, name: "貼前掌/安裝鐵片", displayPrice: 650,  hasConfig: true },
+            { id: 6, name: "清潔保養/除霉",   displayPrice: 900,  hasConfig: true },
+        ]
+    },
+    {
+        label: "周邊項目",
+        items: [
+            { id: 101, name: "鞋眼鞋勾更換", displayPrice: 200, hasConfig: true },
+            { id: 102, name: "鞋楦擴寬",     displayPrice: 200, hasConfig: true },
+        ]
+    },
+    {
+        label: "進階維修項目",
+        items: [
+            { id: 201, name: "取定型物", displayPrice: 1200, hasConfig: true },
+            { id: 202, name: "更換腳床", displayPrice: 1000, hasConfig: true },
+            { id: 203, name: "更換沿條", displayPrice: 2200, hasConfig: true },
+            { id: 204, name: "重新拉楦", displayPrice: 6000, hasConfig: true },
+        ]
+    },
+    {
+        label: "其他",
+        items: [
+            { id: 99, name: "其他", displayPrice: 0, hasConfig: true, isOther: true },
+        ]
+    }
+];
+
+// 扁平化所有項目（供其他函式查找用）
+const REPAIR_ITEMS = REPAIR_GROUPS.flatMap(g => g.items);
+
+// ============================
+// 共用配置模組（可被多個維修項目引用）
+// ============================
+const SHARED_MODULES = {
+    midsole: {
+        key: "midsole",
+        label: "是否更換中底",
+        options: [
+            { name: "不更換中底", price: 0, isAddon: true },
+            { name: "橡膠中底", price: 800, isAddon: true },
+            { name: "皮中底", price: 1000, isAddon: true },
+        ]
+    },
+    edgecolor: {
+        key: "edgecolor",
+        label: "邊色",
+        options: [
+            { name: "原色", price: 0, isAddon: true },
+            { name: "茶色", price: 0, isAddon: true },
+            { name: "咖啡色", price: 0, isAddon: true },
+            { name: "焦茶色", price: 0, isAddon: true },
+            { name: "黑色", price: 0, isAddon: true },
+        ]
+    },
+    stitchcolor: {
+        key: "stitchcolor",
+        label: "外線顏色",
+        options: [
+            { name: "白色", price: 0, isAddon: true },
+            { name: "黑色", price: 0, isAddon: true },
+            { name: "咖啡色", price: 0, isAddon: true },
+        ]
+    },
+    heelstyle: {
+        key: "heelstyle",
+        label: "鞋跟樣式",
+        options: [
+            { name: "直角跟", price: 0, isAddon: true },
+            { name: "古巴跟", price: 0, isAddon: true },
+            { name: "曲跟", price: 0, isAddon: true },
+        ]
+    },
+};
+
+// ============================
+// 鞋跟配置模組（含價格分組）
+// ============================
+const HEEL_CONFIG = {
+    key: "heel",
+    label: "鞋跟款式",
+    grouped: true,
+    groups: [
+        {
+            price: 600,
+            molds: [
+                { mold: "DS-05", options: ["2050-H黑色"] },
+            ]
+        },
+        {
+            price: 800,
+            molds: [
+                { mold: "DS-02", options: ["2020黑色", "2020米白色"] },
+                { mold: "DS-10", options: [
+                    "1100黑色灰圈", "1100黑色黃圈", "1100米白色", "1100綠色",
+                    "1101黑色", "1101米白色", "1101軍綠色", "1101紅咖色",
+                    "1102黑色灰圈", "1102黑色黃圈",
+                    "1105黑色黃圈"
+                ]},
+                { mold: "DS-13", options: [
+                    "1130黑色", "1130軍綠色", "1130咖色",
+                    "1131黑色", "1131米白色", "1131軍綠色", "1131紅咖色",
+                    "1132黑色"
+                ]},
+                { mold: "DS-16", options: ["1160黑色"] },
+                { mold: "DS-23", options: ["1230黑色", "1230米白色", "1230綠色"] },
+                { mold: "DS-25", options: ["1250黑色"] },
+                { mold: "DS-27", options: ["5270黑色", "5270蜂蜜色"] },
+                { mold: "DS-28", options: ["1280黑色"] },
+                { mold: "DS-29", options: ["1290黑色", "1290米白色", "1290綠色"] },
+            ]
+        },
+        {
+            price: 1200,
+            molds: [
+                { mold: "DS-17", options: ["2170燕尾"] },
+            ]
+        },
+    ]
+};
+
+// 皮跟數量模組（僅在「換鞋跟」單獨選擇時出現，全底/分離式已含）
+const HEEL_LEATHER_LAYERS = {
+    key: "heelleather",
+    label: "皮跟數量",
+    isNumberInput: true,
+    pricePerUnit: 200,
+    unit: "層",
+    // 條件：不與全底(3)或分離式大底(2)同時選擇時才顯示
+    showWhenNot: [2, 3],
+};
+
+// ============================
+// 更換前半掌配置模組（可被分離式大底引用）
+// ============================
+const HALFSOLE_CONFIG = {
+    key: "halfsole",
+    label: "前半掌款式",
+    grouped: true,
+    groups: [
+        {
+            price: 1900,
+            molds: [
+                { mold: "DS-09", options: [
+                    "1090黑色灰圈", "1090黑色黃圈",
+                    "1091黑色", "1091米白色", "1091軍綠色", "1091紅咖色",
+                    "1092黑色", "1092灰色"
+                ]},
+                { mold: "DS-14", options: ["1140黑色", "1140米白色", "1140綠色"] },
+            ]
+        },
+    ]
+};
+
+// ============================
+// 色號 → 顏色對照（用於選項底色視覺化）
+// ============================
+const COLOR_MAP = {
+    "黑色": "#2a2a2a",
+    "米白色": "#f5f0e0",
+    "米白": "#f5f0e0",
+    "白色": "#ffffff",
+    "白": "#ffffff",
+    "咖色": "#6b3a2a",
+    "咖啡色": "#6b3a2a",
+    "茶色": "#b8860b",
+    "焦茶色": "#4a2c0a",
+    "紅磚色": "#a0522d",
+    "紅咖色": "#7b3b3a",
+    "紅咖": "#7b3b3a",
+    "卡其色": "#c3b091",
+    "軍綠色": "#4b5320",
+    "綠色": "#2e6b2e",
+    "灰色": "#999999",
+    "原色": "#d4b896",
+    "蜂蜜色": "#d4a530",
+};
+
+// 從色號名稱中提取顏色
+function getColorForName(name) {
+    for (const [key, color] of Object.entries(COLOR_MAP)) {
+        if (name.endsWith(key)) return color;
+    }
+    // 特殊組合色
+    if (name.includes("黑色灰圈")) return "#2a2a2a";
+    if (name.includes("黑色黃圈")) return "#2a2a2a";
+    if (name.includes("灰色黃圈")) return "#999999";
+    return null;
+}
+
+function colorDotHTML(name) {
+    const color = getColorForName(name);
+    if (!color) return "";
+    return `<span class="color-dot" style="background:${color};"></span>`;
+}
+
+// ============================
+// 各維修項目的配置組合
+// 每個項目引用自己的專屬配置 + 共用模組
+// ============================
+const SOLE_CONFIGS = {
+    1: { // 換一片式大底
+        configs: [
+            {
+                key: "sole",
+                label: "大底款式",
+                grouped: true,
+                groups: [
+                    {
+                        price: 2500,
+                        molds: [
+                            { mold: "DS-03", options: ["2030米白色", "2030黑色"] },
+                            { mold: "DS-06", options: ["3060米白色", "3060黑色", "3060咖色"] },
+                            { mold: "DS-07", options: ["3070米白色", "3070黑色", "3070咖色"] },
+                            { mold: "DS-18", options: ["4180黑色", "4180卡其色", "4180紅磚色"] },
+                            { mold: "DS-21", options: ["4210黑色", "4210咖色"] },
+                        ]
+                    },
+                    {
+                        price: 3200,
+                        molds: [
+                            { mold: "DS-14", options: ["1240黑色"] },
+                        ]
+                    },
+                ]
+            },
+            {   // Wedge 選項：僅在選擇 DS-03 時顯示
+                key: "wedge",
+                label: "Wedge 加購",
+                showWhen: { configKey: "1_sole", moldEquals: "DS-03" },
+                options: [
+                    { name: "不加購 Wedge", price: 0, isAddon: true },
+                    { name: "Wedge黑色", price: 500, isAddon: true },
+                    { name: "Wedge白色", price: 500, isAddon: true },
+                    { name: "Wedge米白色", price: 500, isAddon: true },
+                ]
+            },
+            SHARED_MODULES.midsole,
+            SHARED_MODULES.edgecolor,
+            SHARED_MODULES.stitchcolor,
+        ]
+    },
+    2: { // 換分離式大底
+        configs: [
+            {   // 固定費用：單層皮中底 + 維修步驟費用
+                key: "basefee",
+                label: "基礎費用（含單層皮中底及維修步驟）",
+                fixedPrice: true,
+                options: [
+                    { name: "分離式大底基礎費用", price: 2100, isAddon: true },
+                ]
+            },
+            HALFSOLE_CONFIG,
+            HEEL_CONFIG,
+            SHARED_MODULES.heelstyle,
+            {
+                key: "brasspin",
+                label: "是否安裝黃銅固定釘",
+                options: [
+                    { name: "無須安裝", price: 0, isAddon: true },
+                    { name: "安裝黃銅固定釘", price: 450, isAddon: true },
+                ]
+            },
+            SHARED_MODULES.edgecolor,
+            SHARED_MODULES.stitchcolor,
+        ]
+    },
+    3: { // 換全底
+        configs: [
+            {
+                key: "sole",
+                label: "全底大底款式",
+                grouped: true,
+                groups: [
+                    {
+                        price: 3000,
+                        molds: [
+                            { mold: "DS-02", options: ["3020黑色", "3020米白色"] },
+                            { mold: "DS-08", options: ["1081黑色", "1081米白色", "1081軍綠色", "1081紅咖"] },
+                            { mold: "DS-12", options: ["1122黑色灰圈", "1122灰色黃圈"] },
+                            { mold: "DS-22", options: ["1220黑色", "1220米白色", "1220綠色", "1220XX黑色", "1225XX黑色"] },
+                        ]
+                    },
+                    {
+                        price: 3400,
+                        molds: [
+                            { mold: "DS-15", options: ["1150黑色"] },
+                            { mold: "DS-26", options: ["5260黑色", "5260蜂蜜色"] },
+                        ]
+                    },
+                    {
+                        price: 4100,
+                        molds: [
+                            { mold: "", options: ["義大利皮底"] },
+                        ]
+                    },
+                ]
+            },
+            HEEL_CONFIG,
+            SHARED_MODULES.heelstyle,
+            SHARED_MODULES.midsole,
+            SHARED_MODULES.edgecolor,
+            SHARED_MODULES.stitchcolor,
+        ]
+    },
+    4: { // 換鞋跟
+        configs: [
+            HEEL_CONFIG,
+            SHARED_MODULES.heelstyle,
+            HEEL_LEATHER_LAYERS,
+        ]
+    },
+    5: { // 貼前掌/安裝鐵片
+        configs: [
+            {
+                key: "forefoot",
+                label: "前掌/鐵片款式",
+                options: [
+                    { name: "1.2薄前掌", price: 650, isAddon: false },
+                    { name: "豬皮紋", price: 650, isAddon: false },
+                    { name: "2050-S黑色", price: 650, isAddon: false },
+                ]
+            },
+            {   // 外加車線：僅在選擇 2050-S黑色 時顯示
+                key: "forefoot_stitch",
+                label: "外加車線",
+                showWhen: { configKey: "5_forefoot", nameEquals: "2050-S黑色" },
+                options: [
+                    { name: "不加車線", price: 0, isAddon: true },
+                    { name: "外加車線", price: 450, isAddon: true },
+                ]
+            },
+            {
+                key: "ironplate",
+                label: "鐵片加購",
+                options: [
+                    { name: "不加購鐵片", price: 0, isAddon: true },
+                    { name: "打鐵片", price: 300, isAddon: true },
+                    { name: "鑲LuLu鐵片", price: 1300, isAddon: true },
+                    { name: "鑲金鐵片", price: 1300, isAddon: true },
+                ]
+            },
+        ]
+    },
+    6: { // 清潔保養/除霉
+        configs: [
+            {
+                key: "cleaning",
+                label: "清潔保養項目",
+                options: [
+                    { name: "洗鞋保養（有修鞋）", price: 900, isAddon: false },
+                    { name: "洗鞋保養（無修鞋）", price: 1100, isAddon: false },
+                    { name: "洗鞋保養（6吋以上筒高）", price: 1400, isAddon: false },
+                    { name: "洗鞋保養除霉（中低筒）", price: 1500, isAddon: false },
+                    { name: "洗鞋保養除霉（6吋以上筒高）", price: 1800, isAddon: false },
+                ]
+            },
+        ]
+    },
+    7: { // 更換前半掌
+        configs: [
+            HALFSOLE_CONFIG,
+        ]
+    },
+    101: { // 鞋眼鞋勾更換
+        configs: [
+            {
+                key: "eyelet",
+                label: "鞋眼鞋勾數量",
+                isNumberInput: true,
+                pricePerUnit: 200,
+                maxPrice: 1600,
+                unit: "對",
+            },
+            {
+                key: "eyelet_style",
+                label: "樣式、位置",
+                isTextInput: true,
+                placeholder: "請輸入樣式及位置",
+            },
+        ]
+    },
+    102: { // 鞋楦擴寬
+        configs: [
+            {
+                key: "stretching",
+                label: "鞋楦擴寬項目",
+                options: [
+                    { name: "擴腳背（一般鞋靴/6吋內）", price: 200, isAddon: false },
+                    { name: "擴腳背（高於6吋）", price: 500, isAddon: false },
+                    { name: "擴兩側", price: 200, isAddon: false },
+                ]
+            }
+        ]
+    },
+    201: { // 取定型物
+        configs: [
+            {
+                key: "shank",
+                label: "是否有其他修鞋項目？",
+                options: [
+                    { name: "有其他修鞋項目", price: 1200, isAddon: false },
+                    { name: "無其他修鞋項目", price: 2900, isAddon: false },
+                ]
+            }
+        ]
+    },
+    202: { // 更換腳床
+        configs: [
+            {
+                key: "footbed",
+                label: "更換腳床",
+                fixedPrice: true,
+                options: [
+                    { name: "植鞣皮腳床", price: 1000, isAddon: false },
+                ]
+            }
+        ]
+    },
+    203: { // 更換沿條
+        configs: [
+            {
+                key: "welt",
+                label: "更換沿條",
+                fixedPrice: true,
+                options: [
+                    { name: "更換沿條", price: 2200, isAddon: false },
+                ]
+            },
+            {
+                key: "welt_type",
+                label: "沿條類型",
+                options: [
+                    { name: "平沿條", price: 0, isAddon: true },
+                    { name: "高沿條", price: 0, isAddon: true },
+                    { name: "分裂式沿條", price: 0, isAddon: true },
+                ]
+            },
+            {
+                key: "welt_color",
+                label: "沿條顏色",
+                isTextInput: true,
+                placeholder: "請輸入沿條顏色",
+            },
+        ]
+    },
+    204: { // 重新拉楦
+        configs: [
+            {
+                key: "relast_last",
+                label: "使用楦型",
+                isTextInput: true,
+                placeholder: "請輸入楦型",
+            },
+            {
+                key: "relast_size",
+                label: "尺寸",
+                isTextInput: true,
+                placeholder: "請輸入尺寸",
+            },
+            {
+                key: "relast_footbed",
+                label: "腳床",
+                options: [
+                    { name: "Canvas Rib", price: 3800, isAddon: false },
+                    { name: "皮底開溝", price: 4800, isAddon: false },
+                ]
+            },
+            {
+                key: "relast_welt_type",
+                label: "沿條類型",
+                options: [
+                    { name: "平沿條", price: 0, isAddon: true },
+                    { name: "高沿條", price: 0, isAddon: true },
+                    { name: "分裂式沿條", price: 0, isAddon: true },
+                ]
+            },
+            {
+                key: "relast_welt_color",
+                label: "沿條顏色",
+                isTextInput: true,
+                placeholder: "請輸入沿條顏色",
+            },
+        ]
+    },
+    99: { // 其他
+        configs: [
+            {
+                key: "other_desc",
+                label: "維修項目說明",
+                isTextInput: true,
+                placeholder: "請輸入維修項目說明",
+            },
+            {
+                key: "other_price",
+                label: "額外維修金額",
+                isPriceInput: true,
+                placeholder: "請輸入金額",
+            },
+        ]
+    },
+};
+
+// ============================
+// 優惠方案
+// ============================
+const DISCOUNTS = [
+    { id: "none",     name: "無優惠",   rate: 1.0,  desc: "原價" },
+    { id: "store",    name: "店家",     rate: 0.9,  desc: "總金額 9 折" },
+    { id: "vip",      name: "VIP",      rate: 0.95, desc: "總金額 95 折" },
+    { id: "birthday", name: "生日優惠", rate: 0.9,  desc: "總金額 9 折" },
+];
+
+// ============================
+// 系統狀態
+// ============================
+let customerInfo = {};
+let totalPairs = 1;
+let currentPair = 1;
+let allTickets = [];
+let selectedDiscount = "none";
+
+// 當前這一單
+let selectedRepairs = {};
+let selectedConfigs = {};   // { "itemId_configKey": { name, price, isAddon } }
+let otherDescription = ""; // 保留向後相容
+
+// ============================
+// 計算單筆 ticket 金額（僅從第三階段配置計算）
+// ============================
+function calcTicketTotal(ticket) {
+    let total = 0;
+    Object.values(ticket.configs).forEach(cfg => {
+        total += cfg.price || 0;
+    });
+    return total;
+}
+
+// ============================
+// 第一階段
+// ============================
+function goToStage2() {
+    const name = document.getElementById("customerName").value.trim();
+    const phone = document.getElementById("customerPhone").value.trim();
+    const email = document.getElementById("customerEmail").value.trim();
+    const pairs = parseInt(document.getElementById("pairCount").value) || 0;
+
+    const missing = [];
+    if (!name) missing.push("姓名");
+    if (!phone) missing.push("電話");
+    if (!email) missing.push("Email");
+    if (!pairs || pairs < 1) missing.push("維修件數");
+
+    if (missing.length > 0) {
+        alert("請填寫以下必填欄位：\n" + missing.join("、"));
+        return;
+    }
+
+    customerInfo = { name, phone, email };
+    totalPairs = Math.max(1, Math.min(pairs, 20));
+    currentPair = 1;
+    resetCurrentTicket();
+    renderRepairList();
+    updateTicketLabel();
+    setStage(2);
+}
+
+function goBackToStage1() { setStage(1); }
+
+// ============================
+// 第二階段
+// ============================
+function renderRepairList() {
+    const container = document.getElementById("repairGroups");
+    container.innerHTML = "";
+
+    REPAIR_GROUPS.forEach(group => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `<h2>${group.label}</h2>`;
+
+        const list = document.createElement("div");
+        list.className = "repair-list";
+
+        group.items.forEach(item => {
+            const el = document.createElement("div");
+            el.className = "repair-item" + (selectedRepairs[item.id] ? " selected" : "");
+
+            let priceText = item.isOther ? "" : `$${item.displayPrice.toLocaleString()}起`;
+
+            el.innerHTML = `
+                <div class="checkbox"></div>
+                <div class="item-info">
+                    <div>
+                        <span class="name">${item.name}</span>
+                    </div>
+                    <span class="price">${priceText}</span>
+                </div>`;
+
+            el.addEventListener("click", (e) => {
+                if (e.target.tagName === "INPUT") return;
+                toggleRepair(item.id);
+            });
+            list.appendChild(el);
+        });
+
+        card.appendChild(list);
+        container.appendChild(card);
+    });
+}
+
+function toggleRepair(id) {
+    if (selectedRepairs[id]) {
+        delete selectedRepairs[id];
+        Object.keys(selectedConfigs).forEach(k => {
+            if (k.startsWith(id + "_")) delete selectedConfigs[k];
+        });
+    } else {
+        selectedRepairs[id] = true;
+    }
+    renderRepairList();
+}
+
+function goToStage3() {
+    const shoeInfo = document.getElementById("shoeInfo").value.trim();
+    const shoeSize = document.getElementById("shoeSize").value.trim();
+    const hasRepair = Object.keys(selectedRepairs).length > 0;
+
+    const missing = [];
+    if (!shoeInfo) missing.push("鞋子資訊（品牌/外觀）");
+    if (!shoeSize) missing.push("鞋子尺寸");
+    if (!hasRepair) missing.push("至少選擇一個維修項目");
+
+    if (missing.length > 0) {
+        alert("請完成以下必填項目：\n" + missing.join("、"));
+        return;
+    }
+    renderConfigs();
+    updateRunningTotal();
+    updateTicketLabel3();
+    setStage(3);
+}
+
+function goBackToStage2() { setStage(2); }
+
+// ============================
+// 第三階段：鞋底配置
+// ============================
+function shouldShowConfig(cfg, itemId) {
+    // showWhen：依賴另一個配置的選擇
+    if (cfg.showWhen) {
+        const depCfg = selectedConfigs[cfg.showWhen.configKey];
+        if (!depCfg) return false;
+        if (cfg.showWhen.moldEquals && depCfg.mold !== cfg.showWhen.moldEquals) return false;
+        if (cfg.showWhen.nameEquals && depCfg.name !== cfg.showWhen.nameEquals) return false;
+    }
+    // showWhenNot：當某些維修項目「沒有」被選時才顯示
+    if (cfg.showWhenNot) {
+        for (const excludeId of cfg.showWhenNot) {
+            if (selectedRepairs[excludeId]) return false;
+        }
+    }
+    return true;
+}
+
+function renderConfigs() {
+    const container = document.getElementById("configSections");
+    container.innerHTML = "";
+    const noMsg = document.getElementById("noConfigMsg");
+
+    const itemsWithConfig = Object.keys(selectedRepairs)
+        .map(id => parseInt(id))
+        .filter(id => SOLE_CONFIGS[id]);
+
+    if (itemsWithConfig.length === 0) {
+        noMsg.classList.remove("hidden");
+        return;
+    }
+    noMsg.classList.add("hidden");
+
+    itemsWithConfig.forEach(itemId => {
+        const item = REPAIR_ITEMS.find(i => i.id === itemId);
+        const configGroup = SOLE_CONFIGS[itemId];
+
+        // 維修項目名稱標題
+        const titleEl = document.createElement("div");
+        titleEl.style.cssText = "font-size:18px; font-weight:bold; color:#3a2f28; margin:20px 0 8px 0;";
+        titleEl.textContent = `▎${item.name}`;
+        let titleAdded = false;
+
+        configGroup.configs.forEach(cfg => {
+            if (!shouldShowConfig(cfg, itemId)) {
+                delete selectedConfigs[itemId + "_" + cfg.key];
+                return;
+            }
+
+            // 每個配置模組獨立一個白色卡片
+            if (!titleAdded) {
+                container.appendChild(titleEl);
+                titleAdded = true;
+            }
+            const block = document.createElement("div");
+            block.className = "config-block";
+
+            const section = document.createElement("div");
+            section.className = "config-section";
+            const configKey = itemId + "_" + cfg.key;
+
+            if (cfg.fixedPrice) {
+                // 固定費用，自動套用，不需選擇
+                const opt = cfg.options[0];
+                selectedConfigs[configKey] = { name: opt.name, price: opt.price, isAddon: opt.isAddon };
+                section.innerHTML = `<h3>${cfg.label}</h3>
+                    <div style="font-size:16px; color:#6b5a4e; font-weight:bold; padding:8px 0;">
+                        自動加計 $${opt.price.toLocaleString()}
+                    </div>`;
+            } else if (cfg.isTextInput) {
+                // 文字輸入
+                const currentVal = selectedConfigs[configKey] ? selectedConfigs[configKey].text : "";
+                section.innerHTML = `<h3>${cfg.label}</h3>
+                    <div class="qty-input-group">
+                        <input type="text" value="${currentVal}" id="input_${configKey}" placeholder="${cfg.placeholder || ''}" style="flex:1; padding:10px; border:2px solid #e0d6cc; border-radius:8px; font-size:16px;">
+                    </div>`;
+                setTimeout(() => {
+                    const inp = document.getElementById("input_" + configKey);
+                    if (inp) {
+                        inp.addEventListener("input", () => {
+                            selectedConfigs[configKey] = {
+                                name: inp.value.trim() || cfg.label,
+                                price: 0,
+                                isAddon: true,
+                                text: inp.value.trim()
+                            };
+                        });
+                    }
+                }, 0);
+            } else if (cfg.isPriceInput) {
+                // 金額輸入
+                const currentVal = selectedConfigs[configKey] ? selectedConfigs[configKey].price : 0;
+                section.innerHTML = `<h3>${cfg.label}</h3>
+                    <div class="qty-input-group">
+                        <span style="font-size:18px; font-weight:bold; color:#6b5a4e;">$</span>
+                        <input type="number" min="0" value="${currentVal || ''}" id="input_${configKey}" placeholder="${cfg.placeholder || ''}" style="flex:1; padding:10px; border:2px solid #e0d6cc; border-radius:8px; font-size:16px;">
+                    </div>`;
+                setTimeout(() => {
+                    const inp = document.getElementById("input_" + configKey);
+                    if (inp) {
+                        inp.addEventListener("input", () => {
+                            const val = Math.max(0, parseInt(inp.value) || 0);
+                            selectedConfigs[configKey] = {
+                                name: `${cfg.label} $${val.toLocaleString()}`,
+                                price: val,
+                                isAddon: false,
+                            };
+                            updateRunningTotal();
+                        });
+                    }
+                }, 0);
+            } else if (cfg.isNumberInput) {
+                // 數量輸入（如皮跟數量、鞋眼數量）
+                const currentVal = selectedConfigs[configKey] ? selectedConfigs[configKey].qty : 0;
+                const maxHint = cfg.maxPrice ? `，上限 $${cfg.maxPrice.toLocaleString()}` : "";
+                section.innerHTML = `<h3>${cfg.label}</h3>
+                    <div class="qty-input-group">
+                        <input type="number" min="0" max="20" value="${currentVal}" id="input_${configKey}">
+                        <span class="qty-hint">${cfg.unit}（每${cfg.unit} $${cfg.pricePerUnit}${maxHint}）</span>
+                    </div>`;
+                setTimeout(() => {
+                    const inp = document.getElementById("input_" + configKey);
+                    if (inp) {
+                        inp.addEventListener("input", () => {
+                            const qty = Math.max(0, parseInt(inp.value) || 0);
+                            let price = qty * cfg.pricePerUnit;
+                            if (cfg.maxPrice) price = Math.min(price, cfg.maxPrice);
+                            selectedConfigs[configKey] = {
+                                name: `${cfg.label} ×${qty}`,
+                                price: price,
+                                isAddon: true,
+                                qty: qty
+                            };
+                            updateRunningTotal();
+                        });
+                    }
+                }, 0);
+            } else if (cfg.grouped) {
+                // 分組顯示（依模具+價格分組）
+                section.innerHTML = `<h3>${cfg.label}</h3>`;
+                cfg.groups.forEach(group => {
+                    const groupDiv = document.createElement("div");
+                    groupDiv.style.cssText = "margin-bottom:12px;";
+
+                    const priceTag = document.createElement("div");
+                    priceTag.style.cssText = "font-size:15px; color:#6b5a4e; font-weight:bold; margin-bottom:6px;";
+                    priceTag.textContent = `$${group.price.toLocaleString()}`;
+                    groupDiv.appendChild(priceTag);
+
+                    group.molds.forEach(mold => {
+                        const moldLabel = document.createElement("div");
+                        moldLabel.style.cssText = "font-size:14px; color:#8a7b6f; margin-bottom:4px; margin-top:6px;";
+                        moldLabel.textContent = mold.mold;
+                        groupDiv.appendChild(moldLabel);
+
+                        const optionsDiv = document.createElement("div");
+                        optionsDiv.className = "config-options";
+                        mold.options.forEach(optName => {
+                            const btn = document.createElement("div");
+                            const isSelected = selectedConfigs[configKey] && selectedConfigs[configKey].name === optName;
+                            btn.className = "config-option" + (isSelected ? " selected" : "");
+                            btn.innerHTML = `${colorDotHTML(optName)}${optName}<span class="opt-price">$${group.price.toLocaleString()}</span>`;
+                            btn.addEventListener("click", () => {
+                                selectedConfigs[configKey] = { name: optName, price: group.price, isAddon: false, mold: mold.mold };
+                                renderConfigs();
+                                updateRunningTotal();
+                            });
+                            optionsDiv.appendChild(btn);
+                        });
+                        groupDiv.appendChild(optionsDiv);
+                    });
+                    section.appendChild(groupDiv);
+                });
+            } else {
+                // 一般選項
+                section.innerHTML = `<h3>${cfg.label}</h3>`;
+                const optionsDiv = document.createElement("div");
+                optionsDiv.className = "config-options";
+
+                cfg.options.forEach(opt => {
+                    const btn = document.createElement("div");
+                    const isSelected = selectedConfigs[configKey] && selectedConfigs[configKey].name === opt.name;
+                    btn.className = "config-option" + (isSelected ? " selected" : "");
+
+                    let priceLabel = "";
+                    if (opt.isAddon && opt.price > 0) {
+                        priceLabel = `<span class="opt-price">+$${opt.price.toLocaleString()}</span>`;
+                    } else if (!opt.isAddon && opt.price > 0) {
+                        priceLabel = `<span class="opt-price">$${opt.price.toLocaleString()}</span>`;
+                    }
+                    btn.innerHTML = `${colorDotHTML(opt.name)}${opt.name}${priceLabel}`;
+
+                    btn.addEventListener("click", () => {
+                        selectedConfigs[configKey] = { name: opt.name, price: opt.price, isAddon: opt.isAddon };
+                        renderConfigs();
+                        updateRunningTotal();
+                    });
+                    optionsDiv.appendChild(btn);
+                });
+                section.appendChild(optionsDiv);
+            }
+
+            block.appendChild(section);
+            container.appendChild(block);
+        });
+    });
+}
+
+function updateRunningTotal() {
+    let total = 0;
+    Object.values(selectedConfigs).forEach(cfg => {
+        total += cfg.price || 0;
+    });
+    document.getElementById("runningTotal").textContent = `$${total.toLocaleString()}`;
+}
+
+// ============================
+// 完成此單
+// ============================
+function finishTicket() {
+    const ticket = {
+        pair: currentPair,
+        shoeInfo: document.getElementById("shoeInfo").value.trim(),
+        shoeSize: document.getElementById("shoeSize").value.trim(),
+        repairs: { ...selectedRepairs },
+        configs: { ...selectedConfigs },
+        otherDescription: otherDescription,
+        note: document.getElementById("noteText").value.trim(),
+        deliveryWeek: document.getElementById("deliveryWeek").value.trim(),
+    };
+    ticket.total = calcTicketTotal(ticket);
+    allTickets.push(ticket);
+
+    if (currentPair < totalPairs) {
+        currentPair++;
+        resetCurrentTicket();
+        renderRepairList();
+        updateTicketLabel();
+        setStage(2);
+        alert(`第 ${currentPair - 1} 雙已完成！請繼續填寫第 ${currentPair} 雙的維修資訊。`);
+    } else {
+        selectedDiscount = "none";
+        renderStage4();
+        setStage(4);
+    }
+}
+
+function resetCurrentTicket() {
+    selectedRepairs = {};
+    selectedConfigs = {};
+    otherDescription = "";
+    const el = (id) => document.getElementById(id);
+    if (el("shoeInfo")) el("shoeInfo").value = "";
+    if (el("shoeSize")) el("shoeSize").value = "";
+    if (el("noteText")) el("noteText").value = "";
+    if (el("deliveryWeek")) el("deliveryWeek").value = "";
+}
+
+// ============================
+// 第四階段：總覽 + 優惠
+// ============================
+function renderStage4() {
+    let grandTotal = 0;
+
+    // 明細
+    let html = `<h2>全部維修單總覽</h2>
+        <div style="background:#faf6f2; border-radius:8px; padding:12px; margin-bottom:16px; font-size:14px; line-height:1.8;">
+            <div><strong>姓名：</strong>${customerInfo.name || "未填寫"}</div>
+            <div><strong>電話：</strong>${customerInfo.phone || "未填寫"}</div>
+            <div><strong>Email：</strong>${customerInfo.email || "未填寫"}</div>
+            <div><strong>維修件數：</strong>${totalPairs} 雙</div>
+        </div>`;
+
+    allTickets.forEach(ticket => {
+        grandTotal += ticket.total;
+        html += `<div class="summary-ticket">`;
+        html += `<h3>第 ${ticket.pair} 雙
+            ${ticket.shoeInfo ? ` — ${ticket.shoeInfo}` : ""}
+            ${ticket.shoeSize ? `（尺寸：${ticket.shoeSize}）` : ""}</h3>`;
+        if (ticket.deliveryWeek) {
+            html += `<div style="font-size:13px; color:#8a7b6f; margin-bottom:6px;">交期：${ticket.deliveryWeek}</div>`;
+        }
+
+        Object.keys(ticket.repairs).forEach(id => {
+            const item = REPAIR_ITEMS.find(i => i.id === parseInt(id));
+            let line = item.name;
+            if (item.isOther && ticket.configs[id + "_other_desc"] && ticket.configs[id + "_other_desc"].text) {
+                line += `：${ticket.configs[id + "_other_desc"].text}`;
+            }
+
+            const cfgTexts = [];
+            Object.keys(ticket.configs).forEach(k => {
+                if (k.startsWith(id + "_")) {
+                    // 跳過「其他」的說明文字（已在前面顯示）
+                    if (k === id + "_other_desc") return;
+                    const c = ticket.configs[k];
+                    // 跳過純文字輸入（無價格意義的備註）
+                    if (c.text !== undefined && c.price === 0) {
+                        cfgTexts.push(c.text || c.name);
+                        return;
+                    }
+                    let t = c.name;
+                    if (c.price > 0) {
+                        t += c.isAddon ? ` (+$${c.price.toLocaleString()})` : ` ($${c.price.toLocaleString()})`;
+                    }
+                    cfgTexts.push(t);
+                }
+            });
+            if (cfgTexts.length) line += ` → ${cfgTexts.join("、")}`;
+
+            html += `<div class="summary-row">
+                <span>${line}</span>
+            </div>`;
+        });
+
+        html += `<div class="ticket-subtotal">此單小計：$${ticket.total.toLocaleString()}</div>`;
+        if (ticket.note) {
+            html += `<div style="font-size:13px; color:#8a7b6f; margin-top:4px;">備註：${ticket.note}</div>`;
+        }
+        html += `</div>`;
+    });
+
+    html += `<div class="grand-total">
+        <span>全部小計</span><span>$${grandTotal.toLocaleString()}</span>
+    </div>`;
+
+    document.getElementById("stage4Content").innerHTML = html;
+
+    // 優惠選項
+    const discDiv = document.getElementById("discountOptions");
+    discDiv.innerHTML = "";
+    DISCOUNTS.forEach(d => {
+        const btn = document.createElement("div");
+        btn.className = "discount-option" + (selectedDiscount === d.id ? " selected" : "");
+        btn.innerHTML = `${d.name}<span class="disc-detail">${d.desc}</span>`;
+        btn.addEventListener("click", () => {
+            selectedDiscount = d.id;
+            renderStage4();
+        });
+        discDiv.appendChild(btn);
+    });
+
+    // 折扣後金額
+    const disc = DISCOUNTS.find(d => d.id === selectedDiscount);
+    const finalSection = document.getElementById("finalTotalSection");
+
+    if (disc.rate < 1) {
+        const discounted = Math.round(grandTotal * disc.rate);
+        const saved = grandTotal - discounted;
+        finalSection.innerHTML = `
+            <div class="card" style="margin-top:16px;">
+                <div class="discount-line">
+                    <span>${disc.name}優惠（${Math.round(disc.rate * 100) / 10} 折）</span>
+                    <span>-$${saved.toLocaleString()}</span>
+                </div>
+                <div class="final-total">
+                    <span>應收金額</span><span>$${discounted.toLocaleString()}</span>
+                </div>
+            </div>`;
+    } else {
+        finalSection.innerHTML = `
+            <div class="card" style="margin-top:16px;">
+                <div class="final-total" style="border:none; padding:0; margin:0;">
+                    <span>應收金額</span><span>$${grandTotal.toLocaleString()}</span>
+                </div>
+            </div>`;
+    }
+}
+
+function startOver() {
+    allTickets = [];
+    currentPair = 1;
+    selectedDiscount = "none";
+    resetCurrentTicket();
+    document.getElementById("customerName").value = "";
+    document.getElementById("customerPhone").value = "";
+    document.getElementById("customerEmail").value = "";
+    document.getElementById("pairCount").value = "1";
+    setStage(1);
+}
+
+// ============================
+// 畫面切換
+// ============================
+function setStage(n) {
+    [1,2,3,4].forEach(i => {
+        document.getElementById("stage" + i).classList.toggle("hidden", n !== i);
+    });
+
+    // 步驟條
+    for (let i = 1; i <= 4; i++) {
+        const dot = document.getElementById("dot" + i);
+        if (i < n) dot.className = "step-dot done";
+        else if (i === n) dot.className = "step-dot active";
+        else dot.className = "step-dot";
+    }
+    for (let i = 1; i <= 3; i++) {
+        document.getElementById("line" + i).className = "step-line" + (n > i ? " done" : "");
+    }
+
+    const labels = {
+        1: "第一階段：客戶資訊",
+        2: `第二階段：鞋子資訊與維修項目（第 ${currentPair} 雙）`,
+        3: `第三階段：配置選擇與交期（第 ${currentPair} 雙）`,
+        4: "第四階段：明細總覽與優惠",
+    };
+    document.getElementById("stepLabel").textContent = labels[n];
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function updateTicketLabel() {
+    document.getElementById("ticketLabel").textContent = `第 ${currentPair} 雙 / 共 ${totalPairs} 雙`;
+}
+function updateTicketLabel3() {
+    document.getElementById("ticketLabel3").textContent = `第 ${currentPair} 雙 / 共 ${totalPairs} 雙`;
+}
+
+// 初始化
+renderRepairList();
+</script>
+
+</body>
+</html>
