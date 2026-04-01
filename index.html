@@ -235,6 +235,13 @@
 
         .hidden { display: none !important; }
 
+        @media print {
+            .header, .steps-bar, .step-label, #stage5Actions { display: none !important; }
+            body { background: #fff; }
+            .container { padding: 0; max-width: 100%; }
+            .card { box-shadow: none; border: 1px solid #ddd; }
+        }
+
         @media (max-width: 480px) {
             .header h1 { font-size: 22px; }
             .container { padding: 12px; }
@@ -255,7 +262,7 @@
 
 <div class="container">
     <!-- 步驟指示 -->
-    <div class="steps-bar">
+    <div class="steps-bar" id="stepsBar">
         <div class="step-dot active" id="dot1">1</div>
         <div class="step-line" id="line1"></div>
         <div class="step-dot" id="dot2">2</div>
@@ -263,6 +270,8 @@
         <div class="step-dot" id="dot3">3</div>
         <div class="step-line" id="line3"></div>
         <div class="step-dot" id="dot4">4</div>
+        <div class="step-line" id="line4"></div>
+        <div class="step-dot" id="dot5">5</div>
     </div>
     <div class="step-label" id="stepLabel">第一階段：客戶資訊</div>
 
@@ -293,6 +302,29 @@
                 </div>
             </div>
         </div>
+
+        <div class="card">
+            <h2>接洽 / 登錄人員</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>接洽人</label>
+                    <input type="text" id="contactPerson" placeholder="輸入接洽人姓名">
+                </div>
+            </div>
+            <div style="margin: 8px 0;">
+                <label style="font-size:15px; color:#8a7b6f; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="samePersonCheck" checked onchange="toggleKeyinPerson()" style="margin-right:6px; transform:scale(1.2); vertical-align:middle;">
+                    Key-in 人與接洽人相同
+                </label>
+            </div>
+            <div class="form-row hidden" id="keyinPersonRow">
+                <div class="form-group">
+                    <label>Key-in 人</label>
+                    <input type="text" id="keyinPerson" placeholder="輸入 Key-in 人姓名">
+                </div>
+            </div>
+        </div>
+
         <div class="actions">
             <button class="btn btn-next" onclick="goToStage2()">下一步</button>
         </div>
@@ -376,12 +408,46 @@
             <div class="discount-options" id="discountOptions"></div>
         </div>
 
+        <div class="card">
+            <h2>取件方式</h2>
+            <div class="config-options" id="deliveryOptions"></div>
+            <div class="form-row hidden" id="deliveryAddressRow" style="margin-top:12px;">
+                <div class="form-group">
+                    <label>寄送地址</label>
+                    <input type="text" id="deliveryAddress" placeholder="請輸入寄送地址" oninput="renderFinalTotal()">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>付款狀況</h2>
+            <div class="config-options" id="paymentOptions"></div>
+            <div class="form-row hidden" id="vendorRow" style="margin-top:12px;">
+                <div class="form-group">
+                    <label>月結廠商</label>
+                    <select id="vendorSelect" onchange="selectedVendor=this.value" style="width:100%; padding:10px 12px; border:1.5px solid #ddd; border-radius:8px; font-size:17px; font-family:inherit;">
+                        <option value="">請選擇廠商</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <!-- 折扣後金額 -->
         <div id="finalTotalSection"></div>
 
         <div class="actions" style="margin-bottom:40px;">
             <button class="btn btn-back" onclick="startOver()">重新填寫</button>
-            <button class="btn btn-next" onclick="window.print()">列印明細</button>
+            <button class="btn btn-next" onclick="goToStage5()">確認送出</button>
+        </div>
+    </div>
+
+    <!-- ============ 第五階段：完成明細（列印/寄送用） ============ -->
+    <div id="stage5" class="hidden">
+        <div class="card" id="stage5Content"></div>
+
+        <div class="actions" style="margin-bottom:40px;" id="stage5Actions">
+            <button class="btn btn-back" onclick="setStage(4)">返回修改</button>
+            <button class="btn btn-next" onclick="printStage5()">列印明細</button>
         </div>
     </div>
 </div>
@@ -915,6 +981,47 @@ const DISCOUNTS = [
 ];
 
 // ============================
+// 取件方式
+// ============================
+const DELIVERY_METHODS = [
+    { id: "pickup",   name: "來店自取",     fee: 0,   needAddress: false },
+    { id: "home",     name: "宅配到府",     fee: 150, needAddress: true },
+    { id: "cvs",      name: "超商店到店",   fee: 60,  needAddress: true },
+    { id: "dhl",      name: "DHL國外寄送",  fee: 0,   needAddress: true, feeNote: "貨到收取" },
+    { id: "sf",       name: "順豐快遞",     fee: 0,   needAddress: true, feeNote: "貨到收取" },
+];
+
+// ============================
+// 付款狀況
+// ============================
+const PAYMENT_METHODS = [
+    { id: "paid",     name: "現場付清" },
+    { id: "onfinish", name: "完工付清" },
+    { id: "monthly",  name: "簽約月結" },
+];
+
+// 簽約月結合作廠商
+const MONTHLY_VENDORS = [
+    "廠商A",
+    "廠商B",
+    "廠商C",
+];
+
+// ============================
+// 訂單編號產生
+// ============================
+function generateOrderNumber() {
+    const today = new Date();
+    const dateStr = today.getFullYear().toString() +
+        String(today.getMonth() + 1).padStart(2, "0") +
+        String(today.getDate()).padStart(2, "0");
+    const storageKey = "drsole_order_" + dateStr;
+    let seq = parseInt(localStorage.getItem(storageKey) || "0") + 1;
+    localStorage.setItem(storageKey, seq.toString());
+    return `DS-${dateStr}-${String(seq).padStart(3, "0")}`;
+}
+
+// ============================
 // 系統狀態
 // ============================
 let customerInfo = {};
@@ -922,11 +1029,20 @@ let totalPairs = 1;
 let currentPair = 1;
 let allTickets = [];
 let selectedDiscount = "none";
+let selectedDelivery = "pickup";
+let selectedPayment = "paid";
+let selectedVendor = "";
 
 // 當前這一單
 let selectedRepairs = {};
 let selectedConfigs = {};   // { "itemId_configKey": { name, price, isAddon } }
-let otherDescription = ""; // 保留向後相容
+
+// 接洽人切換
+function toggleKeyinPerson() {
+    const checked = document.getElementById("samePersonCheck").checked;
+    document.getElementById("keyinPersonRow").classList.toggle("hidden", checked);
+    if (checked) document.getElementById("keyinPerson").value = "";
+}
 
 // ============================
 // 計算單筆 ticket 金額（僅從第三階段配置計算）
@@ -947,19 +1063,25 @@ function goToStage2() {
     const phone = document.getElementById("customerPhone").value.trim();
     const email = document.getElementById("customerEmail").value.trim();
     const pairs = parseInt(document.getElementById("pairCount").value) || 0;
+    const contactPerson = document.getElementById("contactPerson").value.trim();
 
     const missing = [];
     if (!name) missing.push("姓名");
     if (!phone) missing.push("電話");
     if (!email) missing.push("Email");
     if (!pairs || pairs < 1) missing.push("維修件數");
+    if (!contactPerson) missing.push("接洽人");
+
+    const sameP = document.getElementById("samePersonCheck").checked;
+    const keyinPerson = sameP ? contactPerson : document.getElementById("keyinPerson").value.trim();
+    if (!sameP && !keyinPerson) missing.push("Key-in 人");
 
     if (missing.length > 0) {
         alert("請填寫以下必填欄位：\n" + missing.join("、"));
         return;
     }
 
-    customerInfo = { name, phone, email };
+    customerInfo = { name, phone, email, contactPerson, keyinPerson };
     totalPairs = Math.max(1, Math.min(pairs, 20));
     currentPair = 1;
     resetCurrentTicket();
@@ -1112,7 +1234,7 @@ function renderConfigs() {
             if (cfg.fixedPrice) {
                 // 固定費用，自動套用，不需選擇
                 const opt = cfg.options[0];
-                selectedConfigs[configKey] = { name: opt.name, price: opt.price, isAddon: opt.isAddon };
+                selectedConfigs[configKey] = { name: opt.name, price: opt.price, isAddon: opt.isAddon, label: cfg.label };
                 section.innerHTML = `<h3>${cfg.label}</h3>
                     <div style="font-size:16px; color:#6b5a4e; font-weight:bold; padding:8px 0;">
                         自動加計 $${opt.price.toLocaleString()}
@@ -1132,7 +1254,8 @@ function renderConfigs() {
                                 name: inp.value.trim() || cfg.label,
                                 price: 0,
                                 isAddon: true,
-                                text: inp.value.trim()
+                                text: inp.value.trim(),
+                                label: cfg.label
                             };
                         });
                     }
@@ -1154,6 +1277,7 @@ function renderConfigs() {
                                 name: `${cfg.label} $${val.toLocaleString()}`,
                                 price: val,
                                 isAddon: false,
+                                label: cfg.label
                             };
                             updateRunningTotal();
                         });
@@ -1179,7 +1303,8 @@ function renderConfigs() {
                                 name: `${cfg.label} ×${qty}`,
                                 price: price,
                                 isAddon: true,
-                                qty: qty
+                                qty: qty,
+                                label: cfg.label
                             };
                             updateRunningTotal();
                         });
@@ -1211,7 +1336,7 @@ function renderConfigs() {
                             btn.className = "config-option" + (isSelected ? " selected" : "");
                             btn.innerHTML = `${colorDotHTML(optName)}${optName}<span class="opt-price">$${group.price.toLocaleString()}</span>`;
                             btn.addEventListener("click", () => {
-                                selectedConfigs[configKey] = { name: optName, price: group.price, isAddon: false, mold: mold.mold };
+                                selectedConfigs[configKey] = { name: optName, price: group.price, isAddon: false, mold: mold.mold, label: cfg.label };
                                 renderConfigs();
                                 updateRunningTotal();
                             });
@@ -1241,7 +1366,7 @@ function renderConfigs() {
                     btn.innerHTML = `${colorDotHTML(opt.name)}${opt.name}${priceLabel}`;
 
                     btn.addEventListener("click", () => {
-                        selectedConfigs[configKey] = { name: opt.name, price: opt.price, isAddon: opt.isAddon };
+                        selectedConfigs[configKey] = { name: opt.name, price: opt.price, isAddon: opt.isAddon, label: cfg.label };
                         renderConfigs();
                         updateRunningTotal();
                     });
@@ -1270,11 +1395,11 @@ function updateRunningTotal() {
 function finishTicket() {
     const ticket = {
         pair: currentPair,
+        orderNumber: generateOrderNumber(),
         shoeInfo: document.getElementById("shoeInfo").value.trim(),
         shoeSize: document.getElementById("shoeSize").value.trim(),
         repairs: { ...selectedRepairs },
         configs: { ...selectedConfigs },
-        otherDescription: otherDescription,
         note: document.getElementById("noteText").value.trim(),
         deliveryWeek: document.getElementById("deliveryWeek").value.trim(),
     };
@@ -1298,7 +1423,6 @@ function finishTicket() {
 function resetCurrentTicket() {
     selectedRepairs = {};
     selectedConfigs = {};
-    otherDescription = "";
     const el = (id) => document.getElementById(id);
     if (el("shoeInfo")) el("shoeInfo").value = "";
     if (el("shoeSize")) el("shoeSize").value = "";
@@ -1319,11 +1443,14 @@ function renderStage4() {
             <div><strong>電話：</strong>${customerInfo.phone || "未填寫"}</div>
             <div><strong>Email：</strong>${customerInfo.email || "未填寫"}</div>
             <div><strong>維修件數：</strong>${totalPairs} 雙</div>
+            <div><strong>接洽人：</strong>${customerInfo.contactPerson || "未填寫"}</div>
+            <div><strong>Key-in：</strong>${customerInfo.keyinPerson || "未填寫"}</div>
         </div>`;
 
     allTickets.forEach(ticket => {
         grandTotal += ticket.total;
         html += `<div class="summary-ticket">`;
+        html += `<div style="font-size:13px; color:#8a7b6f; margin-bottom:2px;">訂單編號：${ticket.orderNumber}</div>`;
         html += `<h3>第 ${ticket.pair} 雙
             ${ticket.shoeInfo ? ` — ${ticket.shoeInfo}` : ""}
             ${ticket.shoeSize ? `（尺寸：${ticket.shoeSize}）` : ""}</h3>`;
@@ -1341,15 +1468,16 @@ function renderStage4() {
             const cfgTexts = [];
             Object.keys(ticket.configs).forEach(k => {
                 if (k.startsWith(id + "_")) {
-                    // 跳過「其他」的說明文字（已在前面顯示）
                     if (k === id + "_other_desc") return;
                     const c = ticket.configs[k];
-                    // 跳過純文字輸入（無價格意義的備註）
                     if (c.text !== undefined && c.price === 0) {
-                        cfgTexts.push(c.text || c.name);
+                        const prefix = c.label ? c.label + "：" : "";
+                        cfgTexts.push(prefix + (c.text || c.name));
                         return;
                     }
-                    let t = c.name;
+                    // 用 label 前綴讓明細更清楚（如「邊色：咖啡色」）
+                    const prefix = (c.label && c.isAddon && c.price === 0) ? c.label + "：" : "";
+                    let t = prefix + c.name;
                     if (c.price > 0) {
                         t += c.isAddon ? ` (+$${c.price.toLocaleString()})` : ` ($${c.price.toLocaleString()})`;
                     }
@@ -1371,7 +1499,7 @@ function renderStage4() {
     });
 
     html += `<div class="grand-total">
-        <span>全部小計</span><span>$${grandTotal.toLocaleString()}</span>
+        <span>維修金額小計</span><span>$${grandTotal.toLocaleString()}</span>
     </div>`;
 
     document.getElementById("stage4Content").innerHTML = html;
@@ -1385,47 +1513,272 @@ function renderStage4() {
         btn.innerHTML = `${d.name}<span class="disc-detail">${d.desc}</span>`;
         btn.addEventListener("click", () => {
             selectedDiscount = d.id;
-            renderStage4();
+            renderStage4DeliveryPayment();
+            renderFinalTotal();
         });
         discDiv.appendChild(btn);
     });
 
-    // 折扣後金額
+    // 取件方式 + 付款狀況
+    renderStage4DeliveryPayment();
+    renderFinalTotal();
+}
+
+function renderStage4DeliveryPayment() {
+    // 取件方式
+    const delDiv = document.getElementById("deliveryOptions");
+    delDiv.innerHTML = "";
+    DELIVERY_METHODS.forEach(d => {
+        const btn = document.createElement("div");
+        btn.className = "config-option" + (selectedDelivery === d.id ? " selected" : "");
+        let feeText = "";
+        if (d.fee > 0) feeText = `<span class="opt-price">+$${d.fee}</span>`;
+        else if (d.feeNote) feeText = `<span class="opt-price">${d.feeNote}</span>`;
+        btn.innerHTML = `${d.name}${feeText}`;
+        btn.addEventListener("click", () => {
+            selectedDelivery = d.id;
+            renderStage4DeliveryPayment();
+            renderFinalTotal();
+        });
+        delDiv.appendChild(btn);
+    });
+
+    // 寄送地址顯示/隱藏
+    const method = DELIVERY_METHODS.find(d => d.id === selectedDelivery);
+    document.getElementById("deliveryAddressRow").classList.toggle("hidden", !method.needAddress);
+
+    // 付款狀況
+    const payDiv = document.getElementById("paymentOptions");
+    payDiv.innerHTML = "";
+    PAYMENT_METHODS.forEach(p => {
+        const btn = document.createElement("div");
+        btn.className = "config-option" + (selectedPayment === p.id ? " selected" : "");
+        btn.textContent = p.name;
+        btn.addEventListener("click", () => {
+            selectedPayment = p.id;
+            if (p.id !== "monthly") selectedVendor = "";
+            renderStage4DeliveryPayment();
+        });
+        payDiv.appendChild(btn);
+    });
+
+    // 月結廠商下拉
+    const vendorRow = document.getElementById("vendorRow");
+    vendorRow.classList.toggle("hidden", selectedPayment !== "monthly");
+    if (selectedPayment === "monthly") {
+        const sel = document.getElementById("vendorSelect");
+        sel.innerHTML = `<option value="">請選擇廠商</option>`;
+        MONTHLY_VENDORS.forEach(v => {
+            const opt = document.createElement("option");
+            opt.value = v;
+            opt.textContent = v;
+            if (v === selectedVendor) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    }
+}
+
+function renderFinalTotal() {
+    let grandTotal = 0;
+    allTickets.forEach(t => grandTotal += t.total);
+
     const disc = DISCOUNTS.find(d => d.id === selectedDiscount);
+    const delivery = DELIVERY_METHODS.find(d => d.id === selectedDelivery);
+    const shippingFee = delivery.fee;
     const finalSection = document.getElementById("finalTotalSection");
 
+    const discounted = disc.rate < 1 ? Math.round(grandTotal * disc.rate) : grandTotal;
+    const saved = grandTotal - discounted;
+
+    let html = `<div class="card" style="margin-top:16px;">`;
+
     if (disc.rate < 1) {
-        const discounted = Math.round(grandTotal * disc.rate);
-        const saved = grandTotal - discounted;
-        finalSection.innerHTML = `
-            <div class="card" style="margin-top:16px;">
-                <div class="discount-line">
-                    <span>${disc.name}優惠（${Math.round(disc.rate * 100) / 10} 折）</span>
-                    <span>-$${saved.toLocaleString()}</span>
-                </div>
-                <div class="final-total">
-                    <span>應收金額</span><span>$${discounted.toLocaleString()}</span>
-                </div>
-            </div>`;
-    } else {
-        finalSection.innerHTML = `
-            <div class="card" style="margin-top:16px;">
-                <div class="final-total" style="border:none; padding:0; margin:0;">
-                    <span>應收金額</span><span>$${grandTotal.toLocaleString()}</span>
-                </div>
-            </div>`;
+        html += `<div class="discount-line">
+            <span>${disc.name}優惠（${Math.round(disc.rate * 100) / 10} 折）</span>
+            <span>-$${saved.toLocaleString()}</span>
+        </div>`;
     }
+
+    // 應收金額（含稅開發票）
+    html += `<div class="final-total">
+        <span>應收金額<span style="font-size:13px; font-weight:normal; color:#8a7b6f;">（含稅開發票）</span></span>
+        <span>$${discounted.toLocaleString()}</span>
+    </div>`;
+
+    // 運費（獨立一列）
+    if (shippingFee > 0) {
+        html += `<div style="display:flex; justify-content:space-between; padding:10px 0 0; margin-top:8px; border-top:1px dashed #ddd; font-size:17px; color:#6b5a4e;">
+            <span>運費<span style="font-size:13px; font-weight:normal; color:#8a7b6f;">（現金／不開發票）</span></span>
+            <span style="font-weight:bold;">$${shippingFee.toLocaleString()}</span>
+        </div>`;
+    } else if (delivery.feeNote) {
+        html += `<div style="display:flex; justify-content:space-between; padding:10px 0 0; margin-top:8px; border-top:1px dashed #ddd; font-size:17px; color:#6b5a4e;">
+            <span>運費</span>
+            <span style="font-weight:bold;">${delivery.feeNote}</span>
+        </div>`;
+    }
+
+    // 合計
+    const totalWithShipping = discounted + shippingFee;
+    if (shippingFee > 0) {
+        html += `<div style="display:flex; justify-content:space-between; padding:12px 0 0; margin-top:8px; border-top:2.5px solid #3a2f28; font-size:22px; font-weight:bold;">
+            <span>合計</span>
+            <span>$${totalWithShipping.toLocaleString()}</span>
+        </div>`;
+    }
+
+    html += `</div>`;
+    finalSection.innerHTML = html;
+}
+
+// ============================
+// 第五階段：完成明細（列印/寄送用）
+// ============================
+function goToStage5() {
+    renderStage5();
+    setStage(5);
+}
+
+function renderStage5() {
+    let grandTotal = 0;
+    const disc = DISCOUNTS.find(d => d.id === selectedDiscount);
+    const delivery = DELIVERY_METHODS.find(d => d.id === selectedDelivery);
+    const payment = PAYMENT_METHODS.find(p => p.id === selectedPayment);
+    const address = document.getElementById("deliveryAddress").value.trim();
+
+    let html = `
+        <div style="text-align:center; margin-bottom:16px;">
+            <div style="font-size:22px; font-weight:bold; color:#3a2f28;">Dr.Sole 維修明細</div>
+            <div style="font-size:13px; color:#8a7b6f; margin-top:4px;">傳統製法修鞋工坊</div>
+        </div>
+
+        <div style="background:#faf6f2; border-radius:8px; padding:12px; margin-bottom:16px; font-size:14px; line-height:1.8;">
+            <div><strong>姓名：</strong>${customerInfo.name}</div>
+            <div><strong>電話：</strong>${customerInfo.phone}</div>
+            <div><strong>Email：</strong>${customerInfo.email}</div>
+            <div><strong>接洽人：</strong>${customerInfo.contactPerson}　<strong>Key-in：</strong>${customerInfo.keyinPerson}</div>
+        </div>`;
+
+    allTickets.forEach(ticket => {
+        grandTotal += ticket.total;
+        html += `<div style="border-top:1.5px solid #eee; padding-top:12px; margin-top:12px;">`;
+        html += `<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;">
+            <span style="font-size:15px; font-weight:bold; color:#6b5a4e;">第 ${ticket.pair} 雙${ticket.shoeInfo ? ` — ${ticket.shoeInfo}` : ""}${ticket.shoeSize ? `（${ticket.shoeSize}）` : ""}</span>
+            <span style="font-size:12px; color:#8a7b6f;">${ticket.orderNumber}</span>
+        </div>`;
+        if (ticket.deliveryWeek) {
+            html += `<div style="font-size:13px; color:#8a7b6f; margin-bottom:4px;">交期：${ticket.deliveryWeek}</div>`;
+        }
+
+        Object.keys(ticket.repairs).forEach(id => {
+            const item = REPAIR_ITEMS.find(i => i.id === parseInt(id));
+            let line = item.name;
+            if (item.isOther && ticket.configs[id + "_other_desc"] && ticket.configs[id + "_other_desc"].text) {
+                line += `：${ticket.configs[id + "_other_desc"].text}`;
+            }
+
+            const cfgTexts = [];
+            Object.keys(ticket.configs).forEach(k => {
+                if (k.startsWith(id + "_")) {
+                    if (k === id + "_other_desc") return;
+                    const c = ticket.configs[k];
+                    if (c.text !== undefined && c.price === 0) {
+                        const prefix = c.label ? c.label + "：" : "";
+                        cfgTexts.push(prefix + (c.text || c.name));
+                        return;
+                    }
+                    const prefix = (c.label && c.isAddon && c.price === 0) ? c.label + "：" : "";
+                    let t = prefix + c.name;
+                    if (c.price > 0) {
+                        t += c.isAddon ? ` (+$${c.price.toLocaleString()})` : ` ($${c.price.toLocaleString()})`;
+                    }
+                    cfgTexts.push(t);
+                }
+            });
+            if (cfgTexts.length) line += ` → ${cfgTexts.join("、")}`;
+
+            html += `<div style="padding:3px 0; font-size:14px;">${line}</div>`;
+        });
+
+        html += `<div style="text-align:right; font-size:15px; font-weight:bold; margin-top:6px; padding-top:6px; border-top:1px dashed #ddd;">
+            此單小計：$${ticket.total.toLocaleString()}</div>`;
+        if (ticket.note) {
+            html += `<div style="font-size:13px; color:#8a7b6f; margin-top:4px;">備註：${ticket.note}</div>`;
+        }
+        html += `</div>`;
+    });
+
+    // 金額區
+    const discounted = disc.rate < 1 ? Math.round(grandTotal * disc.rate) : grandTotal;
+    const saved = grandTotal - discounted;
+
+    html += `<div style="margin-top:16px; padding-top:12px; border-top:2.5px solid #3a2f28;">`;
+
+    if (disc.rate < 1) {
+        html += `<div style="display:flex; justify-content:space-between; font-size:15px; color:#c0392b; padding:4px 0;">
+            <span>${disc.name}優惠（${Math.round(disc.rate * 100) / 10} 折）</span>
+            <span>-$${saved.toLocaleString()}</span>
+        </div>`;
+    }
+
+    html += `<div style="display:flex; justify-content:space-between; font-size:19px; font-weight:bold; padding:8px 0;">
+        <span>應收金額<span style="font-size:12px; font-weight:normal; color:#8a7b6f;">（含稅開發票）</span></span>
+        <span>$${discounted.toLocaleString()}</span>
+    </div>`;
+
+    if (delivery.fee > 0) {
+        html += `<div style="display:flex; justify-content:space-between; font-size:16px; color:#6b5a4e; padding:6px 0; border-top:1px dashed #ddd;">
+            <span>運費<span style="font-size:12px; font-weight:normal; color:#8a7b6f;">（現金／不開發票）</span></span>
+            <span style="font-weight:bold;">$${delivery.fee.toLocaleString()}</span>
+        </div>`;
+        html += `<div style="display:flex; justify-content:space-between; font-size:20px; font-weight:bold; padding:8px 0; border-top:2.5px solid #3a2f28;">
+            <span>合計</span><span>$${(discounted + delivery.fee).toLocaleString()}</span>
+        </div>`;
+    } else if (delivery.feeNote) {
+        html += `<div style="display:flex; justify-content:space-between; font-size:16px; color:#6b5a4e; padding:6px 0; border-top:1px dashed #ddd;">
+            <span>運費</span><span style="font-weight:bold;">${delivery.feeNote}</span>
+        </div>`;
+    }
+
+    html += `</div>`;
+
+    // 條列資訊
+    html += `<div style="margin-top:16px; padding-top:12px; border-top:1.5px solid #eee; font-size:14px; line-height:2;">`;
+    html += `<div><strong>取件方式：</strong>${delivery.name}`;
+    if (delivery.needAddress && address) html += `（${address}）`;
+    html += `</div>`;
+    html += `<div><strong>付款狀況：</strong>${payment.name}`;
+    if (selectedPayment === "monthly" && selectedVendor) html += `（${selectedVendor}）`;
+    html += `</div>`;
+    html += `</div>`;
+
+    document.getElementById("stage5Content").innerHTML = html;
+}
+
+function printStage5() {
+    // 隱藏按鈕後列印
+    document.getElementById("stage5Actions").style.display = "none";
+    window.print();
+    document.getElementById("stage5Actions").style.display = "";
 }
 
 function startOver() {
     allTickets = [];
     currentPair = 1;
     selectedDiscount = "none";
+    selectedDelivery = "pickup";
+    selectedPayment = "paid";
+    selectedVendor = "";
     resetCurrentTicket();
     document.getElementById("customerName").value = "";
     document.getElementById("customerPhone").value = "";
     document.getElementById("customerEmail").value = "";
     document.getElementById("pairCount").value = "1";
+    document.getElementById("contactPerson").value = "";
+    document.getElementById("keyinPerson").value = "";
+    document.getElementById("samePersonCheck").checked = true;
+    document.getElementById("keyinPersonRow").classList.add("hidden");
+    document.getElementById("deliveryAddress").value = "";
     setStage(1);
 }
 
@@ -1433,19 +1786,28 @@ function startOver() {
 // 畫面切換
 // ============================
 function setStage(n) {
-    [1,2,3,4].forEach(i => {
+    [1,2,3,4,5].forEach(i => {
         document.getElementById("stage" + i).classList.toggle("hidden", n !== i);
     });
 
-    // 步驟條
-    for (let i = 1; i <= 4; i++) {
-        const dot = document.getElementById("dot" + i);
-        if (i < n) dot.className = "step-dot done";
-        else if (i === n) dot.className = "step-dot active";
-        else dot.className = "step-dot";
-    }
-    for (let i = 1; i <= 3; i++) {
-        document.getElementById("line" + i).className = "step-line" + (n > i ? " done" : "");
+    // 步驟條（第五階段隱藏步驟條和標籤）
+    const stepsBar = document.getElementById("stepsBar");
+    const stepLabel = document.getElementById("stepLabel");
+    if (n === 5) {
+        stepsBar.classList.add("hidden");
+        stepLabel.classList.add("hidden");
+    } else {
+        stepsBar.classList.remove("hidden");
+        stepLabel.classList.remove("hidden");
+        for (let i = 1; i <= 5; i++) {
+            const dot = document.getElementById("dot" + i);
+            if (i < n) dot.className = "step-dot done";
+            else if (i === n) dot.className = "step-dot active";
+            else dot.className = "step-dot";
+        }
+        for (let i = 1; i <= 4; i++) {
+            document.getElementById("line" + i).className = "step-line" + (n > i ? " done" : "");
+        }
     }
 
     const labels = {
@@ -1453,8 +1815,9 @@ function setStage(n) {
         2: `第二階段：鞋子資訊與維修項目（第 ${currentPair} 雙）`,
         3: `第三階段：配置選擇與交期（第 ${currentPair} 雙）`,
         4: "第四階段：明細總覽與優惠",
+        5: "完成明細",
     };
-    document.getElementById("stepLabel").textContent = labels[n];
+    if (n !== 5) document.getElementById("stepLabel").textContent = labels[n];
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
