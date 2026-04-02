@@ -236,7 +236,7 @@
         .hidden { display: none !important; }
 
         @media print {
-            .header, .steps-bar, .step-label, #stage5Actions { display: none !important; }
+            .header, .steps-bar, .step-label, #stage5Actions, #stage5Actions2, .actions { display: none !important; }
             body { background: #fff; }
             .container { padding: 0; max-width: 100%; }
             .card { box-shadow: none; border: 1px solid #ddd; }
@@ -286,7 +286,7 @@
                 </div>
                 <div class="form-group">
                     <label>電話</label>
-                    <input type="tel" id="customerPhone" placeholder="輸入聯絡電話">
+                    <input type="tel" id="customerPhone" placeholder="輸入聯絡電話" maxlength="10" oninput="this.value=this.value.replace(/\D/g,'').slice(0,10)">
                 </div>
             </div>
             <div class="form-row">
@@ -445,9 +445,15 @@
     <div id="stage5" class="hidden">
         <div class="card" id="stage5Content"></div>
 
-        <div class="actions" style="margin-bottom:40px;" id="stage5Actions">
+        <div class="actions" style="margin-bottom:12px;" id="stage5Actions">
             <button class="btn btn-back" onclick="setStage(4)">返回修改</button>
             <button class="btn btn-next" onclick="printStage5()">列印明細</button>
+        </div>
+        <div class="actions" style="margin-bottom:40px;" id="stage5Actions2">
+            <button class="btn btn-next" style="background:#2e6b2e;" onclick="emailToCustomer()">Email 寄送明細給客人</button>
+        </div>
+        <div class="actions" style="margin-bottom:40px;">
+            <button class="btn btn-next" style="background:#3a2f28;" onclick="startOver()">此單完成，下一位客人</button>
         </div>
     </div>
 </div>
@@ -1002,9 +1008,7 @@ const PAYMENT_METHODS = [
 
 // 簽約月結合作廠商
 const MONTHLY_VENDORS = [
-    "廠商A",
-    "廠商B",
-    "廠商C",
+    "Oak Room",
 ];
 
 // ============================
@@ -1067,7 +1071,9 @@ function goToStage2() {
 
     const missing = [];
     if (!name) missing.push("姓名");
+    const phoneDigits = phone.replace(/\D/g, "");
     if (!phone) missing.push("電話");
+    else if (phoneDigits.length !== 10) missing.push("電話（需為10位數字）");
     if (!email) missing.push("Email");
     if (!pairs || pairs < 1) missing.push("維修件數");
     if (!contactPerson) missing.push("接洽人");
@@ -1134,13 +1140,70 @@ function renderRepairList() {
     });
 }
 
+// 互斥邏輯常數
+const SOLE_GROUP = [1, 2, 3];       // 一片式、分離式、全底：只能選一
+const SOLE_INCLUDES = [4, 7];       // 鞋跟、前半掌：選了大底就不能單獨選
+const REQUIRES_SOLE = [202, 203, 204]; // 更換腳床、沿條、拉楦：必須搭配大底
+
 function toggleRepair(id) {
     if (selectedRepairs[id]) {
         delete selectedRepairs[id];
         Object.keys(selectedConfigs).forEach(k => {
             if (k.startsWith(id + "_")) delete selectedConfigs[k];
         });
+        // 取消大底時，同時取消需要搭配大底的進階項目
+        if (SOLE_GROUP.includes(id)) {
+            const hasSole = SOLE_GROUP.some(sid => selectedRepairs[sid]);
+            if (!hasSole) {
+                REQUIRES_SOLE.forEach(rid => {
+                    if (selectedRepairs[rid]) {
+                        delete selectedRepairs[rid];
+                        Object.keys(selectedConfigs).forEach(k => {
+                            if (k.startsWith(rid + "_")) delete selectedConfigs[k];
+                        });
+                    }
+                });
+            }
+        }
     } else {
+        // 選擇大底時：互斥其他大底 + 移除鞋跟/前半掌
+        if (SOLE_GROUP.includes(id)) {
+            SOLE_GROUP.forEach(sid => {
+                if (sid !== id && selectedRepairs[sid]) {
+                    delete selectedRepairs[sid];
+                    Object.keys(selectedConfigs).forEach(k => {
+                        if (k.startsWith(sid + "_")) delete selectedConfigs[k];
+                    });
+                }
+            });
+            SOLE_INCLUDES.forEach(sid => {
+                if (selectedRepairs[sid]) {
+                    delete selectedRepairs[sid];
+                    Object.keys(selectedConfigs).forEach(k => {
+                        if (k.startsWith(sid + "_")) delete selectedConfigs[k];
+                    });
+                }
+            });
+        }
+        // 選鞋跟或前半掌時：自動取消已選的大底
+        if (SOLE_INCLUDES.includes(id)) {
+            SOLE_GROUP.forEach(sid => {
+                if (selectedRepairs[sid]) {
+                    delete selectedRepairs[sid];
+                    Object.keys(selectedConfigs).forEach(k => {
+                        if (k.startsWith(sid + "_")) delete selectedConfigs[k];
+                    });
+                }
+            });
+        }
+        // 選進階項目（腳床/沿條/拉楦）時：必須有大底
+        if (REQUIRES_SOLE.includes(id)) {
+            const hasSole = SOLE_GROUP.some(sid => selectedRepairs[sid]);
+            if (!hasSole) {
+                alert("更換腳床、更換沿條、重新拉楦需搭配換底項目（一片式大底／分離式大底／全底）。");
+                return;
+            }
+        }
         selectedRepairs[id] = true;
     }
     renderRepairList();
@@ -1393,6 +1456,12 @@ function updateRunningTotal() {
 // 完成此單
 // ============================
 function finishTicket() {
+    const deliveryWeek = document.getElementById("deliveryWeek").value.trim();
+    if (!deliveryWeek) {
+        alert("請填寫維修交期週次。");
+        return;
+    }
+
     const ticket = {
         pair: currentPair,
         orderNumber: generateOrderNumber(),
@@ -1401,9 +1470,20 @@ function finishTicket() {
         repairs: { ...selectedRepairs },
         configs: { ...selectedConfigs },
         note: document.getElementById("noteText").value.trim(),
-        deliveryWeek: document.getElementById("deliveryWeek").value.trim(),
+        deliveryWeek: deliveryWeek,
     };
     ticket.total = calcTicketTotal(ticket);
+
+    if (editingTicketIndex >= 0) {
+        // 編輯模式：更新現有 ticket（保留原訂單編號）
+        ticket.orderNumber = allTickets[editingTicketIndex].orderNumber;
+        allTickets[editingTicketIndex] = ticket;
+        editingTicketIndex = -1;
+        renderStage4();
+        setStage(4);
+        return;
+    }
+
     allTickets.push(ticket);
 
     if (currentPair < totalPairs) {
@@ -1420,7 +1500,30 @@ function finishTicket() {
     }
 }
 
+let editingTicketIndex = -1; // -1 = 新建，>=0 = 編輯中
+
+function editTicket(idx) {
+    const ticket = allTickets[idx];
+    editingTicketIndex = idx;
+    currentPair = ticket.pair;
+
+    // 還原鞋資訊
+    document.getElementById("shoeInfo").value = ticket.shoeInfo || "";
+    document.getElementById("shoeSize").value = ticket.shoeSize || "";
+    document.getElementById("noteText").value = ticket.note || "";
+    document.getElementById("deliveryWeek").value = ticket.deliveryWeek || "";
+
+    // 還原選取的維修項目和配置
+    selectedRepairs = { ...ticket.repairs };
+    selectedConfigs = { ...ticket.configs };
+
+    renderRepairList();
+    updateTicketLabel();
+    setStage(2);
+}
+
 function resetCurrentTicket() {
+    editingTicketIndex = -1;
     selectedRepairs = {};
     selectedConfigs = {};
     const el = (id) => document.getElementById(id);
@@ -1447,10 +1550,13 @@ function renderStage4() {
             <div><strong>Key-in：</strong>${customerInfo.keyinPerson || "未填寫"}</div>
         </div>`;
 
-    allTickets.forEach(ticket => {
+    allTickets.forEach((ticket, idx) => {
         grandTotal += ticket.total;
         html += `<div class="summary-ticket">`;
-        html += `<div style="font-size:13px; color:#8a7b6f; margin-bottom:2px;">訂單編號：${ticket.orderNumber}</div>`;
+        html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+            <span style="font-size:13px; color:#8a7b6f;">訂單編號：${ticket.orderNumber}</span>
+            <button onclick="editTicket(${idx})" style="background:#6b5a4e; color:#fff; border:none; border-radius:6px; padding:4px 12px; font-size:13px; cursor:pointer; font-family:inherit;">修改</button>
+        </div>`;
         html += `<h3>第 ${ticket.pair} 雙
             ${ticket.shoeInfo ? ` — ${ticket.shoeInfo}` : ""}
             ${ticket.shoeSize ? `（尺寸：${ticket.shoeSize}）` : ""}</h3>`;
@@ -1513,8 +1619,7 @@ function renderStage4() {
         btn.innerHTML = `${d.name}<span class="disc-detail">${d.desc}</span>`;
         btn.addEventListener("click", () => {
             selectedDiscount = d.id;
-            renderStage4DeliveryPayment();
-            renderFinalTotal();
+            renderStage4();
         });
         discDiv.appendChild(btn);
     });
@@ -1756,10 +1861,90 @@ function renderStage5() {
 }
 
 function printStage5() {
-    // 隱藏按鈕後列印
     document.getElementById("stage5Actions").style.display = "none";
+    document.getElementById("stage5Actions2").style.display = "none";
     window.print();
     document.getElementById("stage5Actions").style.display = "";
+    document.getElementById("stage5Actions2").style.display = "";
+}
+
+function emailToCustomer() {
+    const disc = DISCOUNTS.find(d => d.id === selectedDiscount);
+    const delivery = DELIVERY_METHODS.find(d => d.id === selectedDelivery);
+    const payment = PAYMENT_METHODS.find(p => p.id === selectedPayment);
+    const address = document.getElementById("deliveryAddress").value.trim();
+
+    let grandTotal = 0;
+    let body = "Dr.Sole 維修明細\n";
+    body += "════════════════════\n\n";
+    body += `姓名：${customerInfo.name}\n`;
+    body += `電話：${customerInfo.phone}\n\n`;
+
+    allTickets.forEach(ticket => {
+        grandTotal += ticket.total;
+        body += `────────────────────\n`;
+        body += `訂單編號：${ticket.orderNumber}\n`;
+        body += `第 ${ticket.pair} 雙`;
+        if (ticket.shoeInfo) body += ` — ${ticket.shoeInfo}`;
+        if (ticket.shoeSize) body += `（${ticket.shoeSize}）`;
+        body += `\n`;
+        if (ticket.deliveryWeek) body += `交期：${ticket.deliveryWeek}\n`;
+
+        Object.keys(ticket.repairs).forEach(id => {
+            const item = REPAIR_ITEMS.find(i => i.id === parseInt(id));
+            let line = item.name;
+            if (item.isOther && ticket.configs[id + "_other_desc"] && ticket.configs[id + "_other_desc"].text) {
+                line += `：${ticket.configs[id + "_other_desc"].text}`;
+            }
+            const cfgTexts = [];
+            Object.keys(ticket.configs).forEach(k => {
+                if (k.startsWith(id + "_")) {
+                    if (k === id + "_other_desc") return;
+                    const c = ticket.configs[k];
+                    if (c.text !== undefined && c.price === 0) {
+                        const prefix = c.label ? c.label + "：" : "";
+                        cfgTexts.push(prefix + (c.text || c.name));
+                        return;
+                    }
+                    const prefix = (c.label && c.isAddon && c.price === 0) ? c.label + "：" : "";
+                    let t = prefix + c.name;
+                    if (c.price > 0) {
+                        t += c.isAddon ? ` (+$${c.price.toLocaleString()})` : ` ($${c.price.toLocaleString()})`;
+                    }
+                    cfgTexts.push(t);
+                }
+            });
+            if (cfgTexts.length) line += `\n  → ${cfgTexts.join("、")}`;
+            body += `• ${line}\n`;
+        });
+
+        body += `此單小計：$${ticket.total.toLocaleString()}\n`;
+        if (ticket.note) body += `備註：${ticket.note}\n`;
+        body += `\n`;
+    });
+
+    body += `════════════════════\n`;
+    const discounted = disc.rate < 1 ? Math.round(grandTotal * disc.rate) : grandTotal;
+    if (disc.rate < 1) {
+        const saved = grandTotal - discounted;
+        body += `${disc.name}優惠（${Math.round(disc.rate * 100) / 10} 折）：-$${saved.toLocaleString()}\n`;
+    }
+    body += `應收金額（含稅開發票）：$${discounted.toLocaleString()}\n`;
+    if (delivery.fee > 0) {
+        body += `運費（現金／不開發票）：$${delivery.fee.toLocaleString()}\n`;
+        body += `合計：$${(discounted + delivery.fee).toLocaleString()}\n`;
+    } else if (delivery.feeNote) {
+        body += `運費：${delivery.feeNote}\n`;
+    }
+    body += `\n取件方式：${delivery.name}`;
+    if (delivery.needAddress && address) body += `（${address}）`;
+    body += `\n付款狀況：${payment.name}`;
+    if (selectedPayment === "monthly" && selectedVendor) body += `（${selectedVendor}）`;
+    body += `\n\n感謝您選擇 Dr.Sole！\n`;
+
+    const subject = `Dr.Sole 維修明細 — ${allTickets.map(t => t.orderNumber).join("、")}`;
+    const mailto = `mailto:${encodeURIComponent(customerInfo.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailto);
 }
 
 function startOver() {
